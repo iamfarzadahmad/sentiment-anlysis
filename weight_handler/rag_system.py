@@ -33,7 +33,7 @@ except Exception:
     _HAS_MPL = False
 
 # ----------------------------
-# Canonicalization & Tagging
+# Canonicalization & Tagging and ore
 # ----------------------------
 CANON: Dict[str, set] = {
     "BTC": {"$BTC", "BTC", "BITCOIN"},
