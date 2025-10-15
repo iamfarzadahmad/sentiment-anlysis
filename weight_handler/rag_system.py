@@ -1,32 +1,91 @@
 # models/rag_system.py
-import os, json, math, time
-from typing import Dict, Any, List, Tuple
+import os, json, math, time, re, datetime
+from typing import Dict, Any, List, Tuple, Optional
 from collections import defaultdict
+from threading import Lock
 
+# ----------------------------
+# Paths & constants
+# ----------------------------
 BASE_DIR = os.path.dirname(__file__)
 DATA_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "test data"))
+VIS_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "visualizations"))
 
-# ---- Expected files written by your pipelines (no changes to them) ----
+# Expected files written by your pipelines (unchanged)
 PATHS = {
-    # from models/News_handler.py
-    "news_sentiment": os.path.join(DATA_DIR, "sentiment_output_for_news.json"),
-    # from models/general_handler.py
-    "general_sentiment": os.path.join(DATA_DIR, "sentiment_output_general.json"),
-    # from models/coinflow_With_sentiment.py
-    "focus_sentiment": os.path.join(DATA_DIR, "sentiment_output_for_coin_finder.json"),
-    # from models/coinflow_Analysis.py
-    "coin_flow": os.path.join(DATA_DIR, "Analysis_output_for_coin_flow.json"),
-    # from models/coin_finder.py
-    "coin_finder": os.path.join(DATA_DIR, "coin_keywords_extracted.json"),
-    # optional: verified group result
-    "verified_focus": os.path.join(DATA_DIR, "verified_sentiment_output_focus_group.json"),
-    # optional cache from /coin-sentiment (Twikit) if you decide to save it
-    "twitter_cache": os.path.join(DATA_DIR, "twitter_sentiment_cache.json"),
+    "news_sentiment":   os.path.join(DATA_DIR, "sentiment_output_for_news.json"),
+    "general_sentiment":os.path.join(DATA_DIR, "sentiment_output_general.json"),
+    "focus_sentiment":  os.path.join(DATA_DIR, "sentiment_output_for_coin_finder.json"),
+    "coin_flow":        os.path.join(DATA_DIR, "Analysis_output_for_coin_flow.json"),
+    "coin_finder":      os.path.join(DATA_DIR, "coin_keywords_extracted.json"),
+    "verified_focus":   os.path.join(DATA_DIR, "verified_sentiment_output_focus_group.json"),
+    "twitter_cache":    os.path.join(DATA_DIR, "twitter_sentiment_cache.json"),
+    "snapshots":        os.path.join(DATA_DIR, "rag_snapshots.jsonl"),  # for training/sequence
 }
 
-# In-memory index
-_RAG_INDEX: Dict[str, Dict[str, Any]] = {}
-_RAG_TS: float = 0.0
+# Best-effort plotting (won’t crash if unavailable)
+try:
+    import matplotlib
+    matplotlib.use("Agg")  # headless
+    import matplotlib.pyplot as plt
+    _HAS_MPL = True
+except Exception:
+    _HAS_MPL = False
+
+# ----------------------------
+# Canonicalization & Tagging
+# ----------------------------
+CANON: Dict[str, set] = {
+    "BTC": {"$BTC", "BTC", "BITCOIN"},
+    "ETH": {"$ETH", "ETH", "ETHEREUM"},
+    "XRP": {"$XRP", "XRP"},
+    "SOL": {"$SOL", "SOL", "SOLANA"},
+    "ADA": {"$ADA", "ADA", "CARDANO"},
+    "BNB": {"$BNB", "BNB", "BINANCE"},
+    "LTC": {"$LTC", "LTC", "LITECOIN"},
+    "CRO": {"$CRO", "CRO", "CRONOS"},
+    "XVG": {"$XVG", "XVG", "VERGE"},
+    "ONDO": {"$ONDO", "ONDO"},
+}
+TOKEN2TICKER: Dict[str, str] = {tok: t for t, toks in CANON.items() for tok in toks}
+
+R_DOLLAR = re.compile(r'(?<!\w)\$([A-Za-z][A-Za-z0-9.\-]{1,9})(?!\w)')
+NAME_TOKENS = sorted(
+    {n for toks in CANON.values() for n in toks if not n.startswith("$") and n.isalpha()},
+    key=len, reverse=True
+)
+R_NAMES = re.compile(r'(?<!\w)(' + "|".join(map(re.escape, NAME_TOKENS)) + r')(?!\w)', flags=re.IGNORECASE)
+
+def canon_coin(token: Optional[str]) -> Optional[str]:
+    if not token:
+        return None
+    u = token.upper().strip()
+    if u in TOKEN2TICKER:
+        return TOKEN2TICKER[u]
+    if u.startswith("$") and u[1:] in TOKEN2TICKER:
+        return TOKEN2TICKER[u[1:]]
+    if u in CANON:
+        return u
+    return None
+
+def extract_coins(text: str) -> set:
+    coins = set()
+    if not text:
+        return coins
+    for m in R_DOLLAR.findall(text):
+        c = canon_coin(m)
+        if c:
+            coins.add(c)
+    for m in R_NAMES.findall(text):
+        c = canon_coin(m)
+        if c:
+            coins.add(c)
+    return coins
+
+# ----------------------------
+# Scaling & helpers
+# ----------------------------
+LABEL_MAP = {"POSITIVE": 1, "NEGATIVE": -1, "NEUTRAL": 0}
 
 def _safe_load(path: str):
     try:
@@ -35,191 +94,420 @@ def _safe_load(path: str):
     except Exception:
         return None
 
-def _norm(values: Dict[str, float]) -> Dict[str, float]:
-    """Simple z-score like normalization (mean/std) with safety for 0 std."""
+def _winsorize(values: Dict[str, float], p: float = 0.02) -> Dict[str, float]:
     if not values:
         return {}
-    xs = list(values.values())
-    mean = sum(xs) / len(xs)
-    var = sum((x - mean) ** 2 for x in xs) / max(1, len(xs) - 1)
-    std = math.sqrt(var) if var > 0 else 1.0
-    return {k: (v - mean) / std for k, v in values.items()}
+    xs = sorted(values.values())
+    lo = xs[int(p * (len(xs)))]
+    hi = xs[int(max(0, (1 - p) * len(xs) - 1))]
+    return {k: min(max(v, lo), hi) for k, v in values.items()}
 
-def _add(d: Dict[str, float], k: str, v: float):
-    d[k] = d.get(k, 0.0) + v
+def _robust_scale(values: Dict[str, float]) -> Dict[str, float]:
+    if not values:
+        return {}
+    xs = sorted(values.values())
+    n = len(xs)
+    med = xs[n // 2]
+    mad = sorted(abs(x - med) for x in xs)[n // 2]
+    mad = mad if mad > 0 else 1.0
+    return {k: (v - med) / (1.4826 * mad) for k, v in values.items()}
 
-def _push(lst_map: Dict[str, List[float]], k: str, v: float):
-    lst_map.setdefault(k, []).append(v)
+def _shrinkage_ratio(pos: int, neg: int, prior: int = 2) -> Optional[float]:
+    total = pos + neg
+    if total <= 0:
+        return None
+    p_hat = (pos + prior) / (pos + neg + 2 * prior)
+    return 2 * p_hat - 1  # [-1,1]
 
 def _to_pct(pos: int, neg: int) -> Tuple[float, float]:
     total = max(1, pos + neg)  # ignore neutrals for pct
-    return round(100*pos/total, 2), round(100*neg/total, 2)
+    return round(100 * pos / total, 2), round(100 * neg / total, 2)
 
+def _ts_str(ts: float) -> str:
+    # e.g. 2025-10-15_17-22-03
+    return datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d_%H-%M-%S")
+
+def _ensure_dir(path: str):
+    os.makedirs(path, exist_ok=True)
+
+# ----------------------------
+# Dynamic model loading (optional)
+# ----------------------------
+try:
+    # models/rag_dynamic.py should define: load_dynamic_model, predict_score
+    from models.rag_dynamic import load_dynamic_model, predict_score  # type: ignore
+    _DYN_MODEL = None
+    _DYN_MODEL_TRIED = False
+except Exception:
+    _DYN_MODEL = None
+    _DYN_MODEL_TRIED = True  # don't retry if import failed
+
+# Optional recent-sequence provider for LSTM
+try:
+    from models.rag_seqcache import get_recent_sequence  # type: ignore
+except Exception:
+    def get_recent_sequence(path: str, coin: str, T: int = 7):
+        return []
+
+# Optional snapshot appender for training
+try:
+    from models.rag_logging import append_snapshot  # type: ignore
+except Exception:
+    def append_snapshot(path: str, ts: float, profiles: Dict[str, Dict[str, Any]]):
+        pass
+
+# ----------------------------
+# Visualization savers
+# ----------------------------
+def _save_run_artifacts(run_dir: str, profiles_sorted: Dict[str, Dict[str, Any]]):
+    """Write JSON + CSV snapshots for the run (no plotting)."""
+    try:
+        # profiles.json
+        with open(os.path.join(run_dir, "profiles.json"), "w", encoding="utf-8") as f:
+            json.dump(profiles_sorted, f, ensure_ascii=False, indent=2)
+
+        # scores.csv
+        rows = []
+        for coin, v in profiles_sorted.items():
+            sb = v.get("score_breakdown", {})
+            rows.append({
+                "coin": coin,
+                "score": v.get("score", 0.0),
+                "news_sent": sb.get("news_sent", 0.0),
+                "general_sent": sb.get("general_sent", 0.0),
+                "focus_sent": sb.get("focus_sent", 0.0),
+                "flow_z": sb.get("flow_z", 0.0),
+                "mentions_z": sb.get("mentions_z", 0.0),
+                "twitter_sent": sb.get("twitter_sent", 0.0),
+                "confidence": v.get("confidence", 0.0),
+                "evidence": v.get("evidence", 0),
+                "mode": sb.get("_mode", "static-weights"),
+            })
+        if rows:
+            headers = list(rows[0].keys())
+            with open(os.path.join(run_dir, "scores.csv"), "w", encoding="utf-8") as f:
+                f.write(",".join(headers) + "\n")
+                for r in rows:
+                    f.write(",".join(str(r[h]) for h in headers) + "\n")
+    except Exception:
+        pass  # best effort
+
+def _save_visualizations(run_dir: str, profiles_sorted: Dict[str, Dict[str, Any]], top_n: int = 10):
+    """Create PNG charts for the current run. Best-effort: skip silently if MPL unavailable."""
+    if not _HAS_MPL:
+        return
+    try:
+        import numpy as np
+
+        coins = list(profiles_sorted.keys())[:max(1, top_n)]
+        if not coins:
+            return
+
+        # Prepare arrays
+        scores = [profiles_sorted[c].get("score", 0.0) for c in coins]
+        sb = [profiles_sorted[c].get("score_breakdown", {}) for c in coins]
+        news = [x.get("news_sent", 0.0) for x in sb]
+        gen  = [x.get("general_sent", 0.0) for x in sb]
+        focus= [x.get("focus_sent", 0.0) for x in sb]
+        flow = [x.get("flow_z", 0.0) for x in sb]
+        ment = [x.get("mentions_z", 0.0) for x in sb]
+        twit = [x.get("twitter_sent", 0.0) for x in sb]
+
+        # 1) Leaderboard bar chart
+        plt.figure(figsize=(12, 6))
+        x = range(len(coins))
+        plt.bar(x, scores)
+        plt.xticks(x, coins, rotation=45, ha="right")
+        plt.ylabel("Score")
+        plt.title("Top {} Coins — Composite Score".format(len(coins)))
+        plt.tight_layout()
+        plt.savefig(os.path.join(run_dir, "leaderboard_top10.png"), dpi=180)
+        plt.close()
+
+        # 2) Stacked breakdown of features
+        plt.figure(figsize=(12, 7))
+        x = np.arange(len(coins))
+        b1 = np.array(news)
+        b2 = np.array(gen)
+        b3 = np.array(focus)
+        b4 = np.array(flow)
+        b5 = np.array(ment)
+        b6 = np.array(twit)
+        plt.bar(x, b1, label="news_sent")
+        plt.bar(x, b2, bottom=b1, label="general_sent")
+        plt.bar(x, b3, bottom=b1+b2, label="focus_sent")
+        plt.bar(x, b4, bottom=b1+b2+b3, label="flow_z")
+        plt.bar(x, b5, bottom=b1+b2+b3+b4, label="mentions_z")
+        plt.bar(x, b6, bottom=b1+b2+b3+b4+b5, label="twitter_sent")
+        plt.xticks(x, coins, rotation=45, ha="right")
+        plt.ylabel("Component Value (signed)")
+        plt.title("Score Breakdown (Stacked) — Top {}".format(len(coins)))
+        plt.legend(ncol=3, fontsize=9)
+        plt.tight_layout()
+        plt.savefig(os.path.join(run_dir, "breakdown_top10.png"), dpi=180)
+        plt.close()
+
+        # 3) Heatmap of features
+        feat_mat = np.vstack([news, gen, focus, flow, ment, twit])  # shape [6, N]
+        plt.figure(figsize=(12, 4.5))
+        im = plt.imshow(feat_mat, aspect="auto")
+        plt.colorbar(im, fraction=0.022, pad=0.04)
+        plt.yticks(range(6), ["news", "general", "focus", "flow_z", "mentions_z", "twitter"])
+        plt.xticks(range(len(coins)), coins, rotation=45, ha="right")
+        plt.title("Feature Heatmap — Top {}".format(len(coins)))
+        plt.tight_layout()
+        plt.savefig(os.path.join(run_dir, "heatmap_features.png"), dpi=180)
+        plt.close()
+    except Exception:
+        pass  # best effort
+
+# ----------------------------
+# In-memory index & lock
+# ----------------------------
+_RAG_INDEX: Dict[str, Dict[str, Any]] = {}
+_RAG_TS: float = 0.0
+_BUILD_LOCK: Lock = Lock()
+
+# ----------------------------
+# Core builder
+# ----------------------------
 def build_rag_index(weights: Dict[str, float] = None) -> Dict[str, Any]:
     """
     Collect outputs from all pipelines, build per-coin profiles, normalize numeric features,
-    compute composite scores with weights, and cache in memory.
+    compute composite scores with weights OR a learned model, cache in memory,
+    and save a timestamped visualization pack each run.
     """
-    global _RAG_INDEX, _RAG_TS
-    weights = weights or {
-        # Feature weights (tune freely)
-        "news_sent": 0.25,           # avg FinBERT label: POS=+1, NEG=-1, NEU=0 over last N news items about coin (if present)
-        "general_sent": 0.15,        # from general_handler (POS/NEG ratio)
-        "focus_sent": 0.20,          # from focus pipeline avg sentiment per coin
-        "flow": 0.25,                # z-scored aggregated net flow
-        "mentions": 0.10,            # z-scored mentions from coin_finder keywords
-        "twitter_sent": 0.05,        # cached /coin-sentiment if you decide to save it
-    }
-
-    profiles: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
-        "news_sent": None,
-        "general_sent": None,
-        "focus_sent": None,
-        "flow": 0.0,
-        "mentions": 0.0,
-        "twitter_pos": 0,
-        "twitter_neg": 0,
-        "sources": [],
-    })
-
-    # ===== 1) Coin Flow (numeric) =====
-    coin_flow = _safe_load(PATHS["coin_flow"])
-    if coin_flow and isinstance(coin_flow, dict):
-        # aggregated_flows: { "BTC": 12345, ... }
-        agg = coin_flow.get("aggregated_flows", {})
-        for coin, val in agg.items():
-            profiles[coin]["flow"] = profiles[coin].get("flow", 0.0) + float(val)
-            profiles[coin]["sources"].append("coin_flow")
-
-    # ===== 2) Focus Sentiment per coin (numeric) =====
-    focus_sent = _safe_load(PATHS["focus_sentiment"])
-    if focus_sent and isinstance(focus_sent, dict):
-        avg = focus_sent.get("average_sentiment", {})
-        for coin, s in avg.items():
-            profiles[coin]["focus_sent"] = float(s)
-            profiles[coin]["sources"].append("focus_sentiment")
-
-    # ===== 3) Coin Finder Mentions (numeric volume by unique keywords) =====
-    cf = _safe_load(PATHS["coin_finder"])
-    if cf and isinstance(cf, dict):
-        ckf = cf.get("coin_keywords_filtered", {})
-        # ckf is a dict keyed by some id-> {keyword:count,...}; we’ll count mentions of known coin-like words
-        known_coins = {
-            "Bitcoin","BTC","Ethereum","ETH","XRP","Solana","SOL","Ondo","Cronos","CRO","Binance","BNB",
-            "Picoin","Cardano","ADA","Litecoin","LTC","XVG"
+    global _RAG_INDEX, _RAG_TS, _DYN_MODEL, _DYN_MODEL_TRIED
+    with _BUILD_LOCK:
+        weights = weights or {
+            "news_sent": 0.25,     # avg FinBERT label: POS=+1, NEG=-1, NEU=0
+            "general_sent": 0.15,  # general stream avg
+            "focus_sent": 0.20,    # focus pipeline avg
+            "flow": 0.25,          # robust-z net flow
+            "mentions": 0.10,      # robust-z mentions
+            "twitter_sent": 0.05,  # shrunk pos-neg ratio
         }
-        # accumulate keyword counts for coin-like tokens
-        mention_scores: Dict[str, float] = defaultdict(float)
-        for _, kw_counts in ckf.items():
-            if not isinstance(kw_counts, dict):
-                continue
-            for word, cnt in kw_counts.items():
-                w = (word or "").strip()
-                if not w:
+
+        # Try once to load dynamic model from ../ml_models
+        if not _DYN_MODEL_TRIED:
+            model_dir = os.path.abspath(os.path.join(BASE_DIR, "..", "ml_models"))
+            try:
+                _DYN_MODEL = load_dynamic_model(model_dir)  # may be None
+            except Exception:
+                _DYN_MODEL = None
+            _DYN_MODEL_TRIED = True
+
+        profiles: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
+            "news_sent": None,
+            "general_sent": None,
+            "focus_sent": None,
+            "flow": 0.0,
+            "mentions": 0.0,
+            "twitter_pos": 0,
+            "twitter_neg": 0,
+            "twitter_sent": None,
+            "sources": [],
+        })
+
+        # ===== 1) Coin Flow (numeric) =====
+        coin_flow = _safe_load(PATHS["coin_flow"])
+        if isinstance(coin_flow, dict):
+            agg = coin_flow.get("aggregated_flows", {})
+            for coin_raw, val in agg.items():
+                coin = canon_coin(coin_raw)
+                if not coin:
                     continue
-                if w in known_coins or w.upper() in known_coins:
-                    # Try map to canonical tickers/names
-                    key = w.upper()
-                    mention_scores[key] += float(cnt)
+                profiles[coin]["flow"] = profiles[coin].get("flow", 0.0) + float(val)
+                profiles[coin]["sources"].append("coin_flow")
 
-        # Push into profiles
-        for coin, m in mention_scores.items():
-            profiles[coin]["mentions"] = profiles[coin].get("mentions", 0.0) + m
-            profiles[coin]["sources"].append("coin_finder")
+        # ===== 2) Focus Sentiment per coin (numeric) =====
+        focus_sent = _safe_load(PATHS["focus_sentiment"])
+        if isinstance(focus_sent, dict):
+            avg = focus_sent.get("average_sentiment", {})
+            for coin_raw, s in avg.items():
+                coin = canon_coin(coin_raw)
+                if not coin:
+                    continue
+                profiles[coin]["focus_sent"] = float(s)
+                profiles[coin]["sources"].append("focus_sentiment")
 
-    # ===== 4) General Sentiment (treat POS=+1, NEG=-1 average over last items) =====
-    gen = _safe_load(PATHS["general_sentiment"])
-    # general handler saves list of {text, sentiment}
-    if isinstance(gen, list):
-        # crude coin tag: look for $TICKER patterns and major names
-        COIN_TAGS = ["$BTC","$ETH","$XRP","$SOL","$ADA","Bitcoin","Ethereum","XRP","Solana","Cardano"]
-        label_map = {"POSITIVE":1, "NEGATIVE":-1, "NEUTRAL":0}
-        per_coin_scores = defaultdict(list)
-        for item in gen:
-            text = (item.get("text") or "").lower()
-            label = (item.get("sentiment") or "NEUTRAL").upper()
-            score = label_map.get(label, 0)
-            for tag in COIN_TAGS:
-                if tag.lower() in text:
-                    per_coin_scores[tag.upper()].append(score)
-        for coin, ss in per_coin_scores.items():
-            if ss:
-                profiles[coin]["general_sent"] = sum(ss)/len(ss)
-                profiles[coin]["sources"].append("general_sentiment")
+        # ===== 3) Coin Finder Mentions =====
+        cf = _safe_load(PATHS["coin_finder"])
+        if isinstance(cf, dict):
+            ckf = cf.get("coin_keywords_filtered", {})
+            mention_scores: Dict[str, float] = defaultdict(float)
+            for _, kw_counts in ckf.items():
+                if not isinstance(kw_counts, dict):
+                    continue
+                for word, cnt in kw_counts.items():
+                    coin = canon_coin((word or "").strip())
+                    if coin:
+                        mention_scores[coin] += float(cnt)
+            for coin, m in mention_scores.items():
+                profiles[coin]["mentions"] = profiles[coin].get("mentions", 0.0) + m
+                profiles[coin]["sources"].append("coin_finder")
 
-    # ===== 5) News Sentiment (FinBERT) -> same mapping =====
-    news = _safe_load(PATHS["news_sentiment"])
-    if isinstance(news, list):
-        label_map = {"POSITIVE":1, "NEGATIVE":-1, "NEUTRAL":0}
-        COIN_TAGS = ["$BTC","$ETH","$XRP","$SOL","$ADA","Bitcoin","Ethereum","XRP","Solana","Cardano"]
-        per_coin_scores = defaultdict(list)
-        for item in news:
-            text = (item.get("text") or "").lower()
-            label = (item.get("dominant_sentiment") or "NEUTRAL").upper()
-            score = label_map.get(label, 0)
-            for tag in COIN_TAGS:
-                if tag.lower() in text:
-                    per_coin_scores[tag.upper()].append(score)
-        for coin, ss in per_coin_scores.items():
-            if ss:
-                profiles[coin]["news_sent"] = sum(ss)/len(ss)
-                profiles[coin]["sources"].append("news_sentiment")
+        # ===== 4) General Sentiment (list) =====
+        gen = _safe_load(PATHS["general_sentiment"])
+        if isinstance(gen, list):
+            per_coin_scores = defaultdict(list)
+            for item in gen:
+                text = item.get("text") or ""
+                label = (item.get("sentiment") or "NEUTRAL").upper()
+                score = LABEL_MAP.get(label, 0)
+                for coin in extract_coins(text):
+                    per_coin_scores[coin].append(score)
+            for coin, ss in per_coin_scores.items():
+                if ss:
+                    profiles[coin]["general_sent"] = sum(ss) / len(ss)
+                    profiles[coin]["sources"].append("general_sentiment")
 
-    # ===== 6) Optional: cached twitter sentiment from /coin-sentiment =====
-    tw = _safe_load(PATHS["twitter_cache"])
-    # format assumed: [{query, positive, negative, ...}, ...]
-    if isinstance(tw, list):
-        for row in tw:
-            q = (row.get("query") or "").upper()
-            pos = int(row.get("positive", 0))
-            neg = int(row.get("negative", 0))
-            if q:
-                profiles[q]["twitter_pos"] += pos
-                profiles[q]["twitter_neg"] += neg
-                profiles[q]["sources"].append("twitter_sentiment")
+        # ===== 5) News Sentiment (list) =====
+        news = _safe_load(PATHS["news_sentiment"])
+        if isinstance(news, list):
+            per_coin_scores = defaultdict(list)
+            for item in news:
+                text = item.get("text") or ""
+                label = (item.get("dominant_sentiment") or "NEUTRAL").upper()
+                score = LABEL_MAP.get(label, 0)
+                for coin in extract_coins(text):
+                    per_coin_scores[coin].append(score)
+            for coin, ss in per_coin_scores.items():
+                if ss:
+                    profiles[coin]["news_sent"] = sum(ss) / len(ss)
+                    profiles[coin]["sources"].append("news_sentiment")
 
-    # ===== Normalize numeric fields for ranking =====
-    flow_map = {c: v["flow"] for c, v in profiles.items()}
-    mentions_map = {c: v["mentions"] for c, v in profiles.items()}
-    flow_z = _norm(flow_map)
-    mentions_z = _norm(mentions_map)
+        # ===== 6) Optional: cached twitter sentiment =====
+        tw = _safe_load(PATHS["twitter_cache"])
+        if isinstance(tw, list):
+            for row in tw:
+                q = (row.get("query") or "").upper()
+                coin = canon_coin(q)
+                if not coin:
+                    continue
+                pos = int(row.get("positive", 0))
+                neg = int(row.get("negative", 0))
+                profiles[coin]["twitter_pos"] += pos
+                profiles[coin]["twitter_neg"] += neg
+                profiles[coin]["sources"].append("twitter_sentiment")
 
-    # compute twitter % -> sentiment in [-1,1]
-    for coin, v in profiles.items():
-        pos, neg = v["twitter_pos"], v["twitter_neg"]
-        tw_total = pos + neg
-        if tw_total > 0:
-            tw_sent = (pos - neg) / tw_total
-        else:
-            tw_sent = None
-        v["twitter_sent"] = tw_sent
+        # ===== Normalize numeric fields (robust) =====
+        flow_map = {c: v["flow"] for c, v in profiles.items()}
+        mentions_map = {c: v["mentions"] for c, v in profiles.items()}
+        flow_z = _robust_scale(_winsorize(flow_map))
+        mentions_z = _robust_scale(_winsorize(mentions_map))
 
-    # ===== Final score =====
-    for coin, v in profiles.items():
-        score = 0.0
-        detail = {}
-        # Fill missing as 0 for sentiment-like
-        ns = v["news_sent"] if v["news_sent"] is not None else 0.0
-        gs = v["general_sent"] if v["general_sent"] is not None else 0.0
-        fs = v["focus_sent"] if v["focus_sent"] is not None else 0.0
-        tws = v["twitter_sent"] if v["twitter_sent"] is not None else 0.0
-        fl = flow_z.get(coin, 0.0)
-        mn = mentions_z.get(coin, 0.0)
+        # compute twitter % -> sentiment in [-1,1] with shrinkage
+        for coin, v in profiles.items():
+            v["twitter_sent"] = _shrinkage_ratio(v["twitter_pos"], v["twitter_neg"], prior=2)
 
-        score += weights["news_sent"]   * ns;   detail["news_sent"] = ns
-        score += weights["general_sent"]* gs;   detail["general_sent"] = gs
-        score += weights["focus_sent"]  * fs;   detail["focus_sent"] = fs
-        score += weights["flow"]        * fl;   detail["flow_z"] = fl
-        score += weights["mentions"]    * mn;   detail["mentions_z"] = mn
-        score += weights["twitter_sent"]* tws;  detail["twitter_sent"] = tws
+        # ===== Final scores per coin =====
+        for coin, v in profiles.items():
+            detail: Dict[str, Any] = {}
+            # Fill missing as 0 for sentiment-like
+            ns = v["news_sent"] if v["news_sent"] is not None else 0.0
+            gs = v["general_sent"] if v["general_sent"] is not None else 0.0
+            fs = v["focus_sent"] if v["focus_sent"] is not None else 0.0
+            tws = v["twitter_sent"] if v["twitter_sent"] is not None else 0.0
+            fl = flow_z.get(coin, 0.0)
+            mn = mentions_z.get(coin, 0.0)
 
-        v["score"] = round(score, 4)
-        v["score_breakdown"] = detail
+            detail["news_sent"] = ns
+            detail["general_sent"] = gs
+            detail["focus_sent"] = fs
+            detail["flow_z"] = fl
+            detail["mentions_z"] = mn
+            detail["twitter_sent"] = tws
 
-    _RAG_INDEX = dict(sorted(profiles.items(), key=lambda kv: kv[1]["score"], reverse=True))
-    _RAG_TS = time.time()
-    return {"coins_indexed": len(_RAG_INDEX), "updated_at": _RAG_TS}
+            # Evidence & simple confidence
+            evidence = 0
+            evidence += 1 if v["news_sent"] is not None else 0
+            evidence += 1 if v["general_sent"] is not None else 0
+            evidence += 1 if v["focus_sent"] is not None else 0
+            evidence += 1 if coin in flow_z else 0
+            evidence += 1 if coin in mentions_z else 0
+            evidence += 1 if v["twitter_sent"] is not None else 0
 
+            feats = [ns, gs, fs, fl, mn, tws]
+            mask = [
+                int(v["news_sent"] is not None),
+                int(v["general_sent"] is not None),
+                int(v["focus_sent"] is not None),
+                int(coin in flow_z),
+                int(coin in mentions_z),
+                int(v["twitter_sent"] is not None),
+            ]
+
+            # Dynamic model path (if present); else static weighted sum
+            if _DYN_MODEL is not None:
+                try:
+                    recent_seq = get_recent_sequence(PATHS["snapshots"], coin, T=7)
+                except Exception:
+                    recent_seq = []
+                try:
+                    dyn_score = predict_score(_DYN_MODEL, feats, mask, recent_seq=recent_seq)
+                    v["score"] = round(float(dyn_score), 4)
+                    detail["_mode"] = "dynamic-model"
+                except Exception:
+                    score = 0.0
+                    score += weights["news_sent"] * ns
+                    score += weights["general_sent"] * gs
+                    score += weights["focus_sent"] * fs
+                    score += weights["flow"] * fl
+                    score += weights["mentions"] * mn
+                    score += weights["twitter_sent"] * tws
+                    v["score"] = round(score, 4)
+                    detail["_mode"] = "static-weights"
+            else:
+                score = 0.0
+                score += weights["news_sent"] * ns
+                score += weights["general_sent"] * gs
+                score += weights["focus_sent"] * fs
+                score += weights["flow"] * fl
+                score += weights["mentions"] * mn
+                score += weights["twitter_sent"] * tws
+                v["score"] = round(score, 4)
+                detail["_mode"] = "static-weights"
+
+            # Confidence: 0..1 (sources + agreement w/ score sign)
+            agree = 0
+            for k in ["news_sent", "general_sent", "focus_sent", "twitter_sent"]:
+                val = detail.get(k, 0.0)
+                if val and math.copysign(1, val) == math.copysign(1, v["score"]):
+                    agree += 1
+            v["evidence"] = evidence
+            v["confidence"] = round(min(1.0, 0.15 * evidence + 0.05 * agree), 3)
+            v["score_breakdown"] = detail
+
+        # Sort by score then confidence
+        _RAG_INDEX = dict(sorted(
+            profiles.items(),
+            key=lambda kv: (kv[1]["score"], kv[1].get("confidence", 0.0)),
+            reverse=True
+        ))
+        _RAG_TS = time.time()
+
+        # Append snapshots for training (best-effort; never crash)
+        try:
+            append_snapshot(PATHS["snapshots"], _RAG_TS, _RAG_INDEX)
+        except Exception:
+            pass
+
+        # Save timestamped visualizations + artifacts (best-effort)
+        try:
+            _ensure_dir(VIS_DIR)
+            run_dir = os.path.join(VIS_DIR, _ts_str(_RAG_TS))
+            _ensure_dir(run_dir)
+            _save_run_artifacts(run_dir, _RAG_INDEX)
+            _save_visualizations(run_dir, _RAG_INDEX, top_n=10)
+        except Exception:
+            pass
+
+        return {"coins_indexed": len(_RAG_INDEX), "updated_at": _RAG_TS}
+
+# ----------------------------
+# Query helpers
+# ----------------------------
 def rag_top(top_k: int = 10) -> List[Dict[str, Any]]:
     items = list(_RAG_INDEX.items())[:max(1, top_k)]
     out = []
@@ -231,7 +519,7 @@ def rag_explain(coin: str) -> Dict[str, Any]:
     c = coin.upper()
     v = _RAG_INDEX.get(c)
     if not v:
-        # fuzzy fallback: try coin name like "BITCOIN" -> "$BTC" if present
+        # fuzzy fallback: try coin name like "BITCOIN" -> "BTC" if present
         for k in _RAG_INDEX.keys():
             if c in k or k in c:
                 v = _RAG_INDEX[k]
@@ -253,11 +541,15 @@ def rag_explain(coin: str) -> Dict[str, Any]:
     if fl: why.append(f"flow_z={fl:+.2f}")
     if mn: why.append(f"mentions_z={mn:+.2f}")
     if tw: why.append(f"twitter_sent={tw:+.2f}")
+    mode = v["score_breakdown"].get("_mode", "static-weights")
     return {
         "coin": c,
         "found": True,
         "score": v["score"],
         "why": ", ".join(why) or "no strong signals",
+        "mode": mode,
+        "evidence": v.get("evidence", 0),
+        "confidence": v.get("confidence", 0.0),
         "sources": sorted(set(v.get("sources", []))),
         "raw": v
     }
