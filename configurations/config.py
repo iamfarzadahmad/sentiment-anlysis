@@ -1,6 +1,6 @@
 # configurations/config.py
 
-# ---- TwitterAPI.io (HTTP) ----
+# ---- TwitterAPI.io (HTTP) --
 import os
 
 # TwitterAPI.io – Advanced Search
