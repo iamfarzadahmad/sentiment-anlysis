@@ -1,0 +1,11 @@
+{
+  "coins_indexed": 4,
+  "feature_coverage": {
+    "news_sent": 0.0,
+    "general_sent": 0.0,
+    "focus_sent": 0.0,
+    "flow_z": 1.0,
+    "mentions_z": 1.0,
+    "twitter_sent": 1.0
+  }
+}

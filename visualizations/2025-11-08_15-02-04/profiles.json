@@ -1,0 +1,87 @@
+{
+  "6BFPDDF7VDKFDZEPJWZVENZGIGZS1DJMZJHKTJITPUMP": {
+    "news_sent": null,
+    "general_sent": null,
+    "focus_sent": null,
+    "flow": 0.0,
+    "mentions": 0.0,
+    "twitter_pos": 17,
+    "twitter_neg": 1,
+    "twitter_total": 18,
+    "twitter_pos_pct": 94.44,
+    "twitter_neg_pct": 5.56,
+    "twitter_sent": 0.7272727272727273,
+    "sources": [
+      "twitter_sentiment"
+    ],
+    "score": 0.0364,
+    "evidence": 3,
+    "confidence": 0.5,
+    "score_breakdown": {
+      "news_sent": 0.0,
+      "general_sent": 0.0,
+      "focus_sent": 0.0,
+      "flow_z": 0.0,
+      "mentions_z": 0.0,
+      "twitter_sent": 0.7272727272727273,
+      "_mode": "static-weights"
+    }
+  },
+  "BTC": {
+    "news_sent": null,
+    "general_sent": null,
+    "focus_sent": null,
+    "flow": 0.0,
+    "mentions": 0.0,
+    "twitter_pos": 40,
+    "twitter_neg": 8,
+    "twitter_total": 48,
+    "twitter_pos_pct": 83.33,
+    "twitter_neg_pct": 16.67,
+    "twitter_sent": 0.6153846153846154,
+    "sources": [
+      "twitter_sentiment",
+      "twitter_sentiment"
+    ],
+    "score": 0.0308,
+    "evidence": 3,
+    "confidence": 0.5,
+    "score_breakdown": {
+      "news_sent": 0.0,
+      "general_sent": 0.0,
+      "focus_sent": 0.0,
+      "flow_z": 0.0,
+      "mentions_z": 0.0,
+      "twitter_sent": 0.6153846153846154,
+      "_mode": "static-weights"
+    }
+  },
+  "6N3VFO3KE4XUMEKJOCCVUWFAVMV5GMDCMYZ1NES48R13": {
+    "news_sent": null,
+    "general_sent": null,
+    "focus_sent": null,
+    "flow": 0.0,
+    "mentions": 0.0,
+    "twitter_pos": 1,
+    "twitter_neg": 2,
+    "twitter_total": 3,
+    "twitter_pos_pct": 33.33,
+    "twitter_neg_pct": 66.67,
+    "twitter_sent": -0.1428571428571429,
+    "sources": [
+      "twitter_sentiment"
+    ],
+    "score": -0.0071,
+    "evidence": 3,
+    "confidence": 0.5,
+    "score_breakdown": {
+      "news_sent": 0.0,
+      "general_sent": 0.0,
+      "focus_sent": 0.0,
+      "flow_z": 0.0,
+      "mentions_z": 0.0,
+      "twitter_sent": -0.1428571428571429,
+      "_mode": "static-weights"
+    }
+  }
+}

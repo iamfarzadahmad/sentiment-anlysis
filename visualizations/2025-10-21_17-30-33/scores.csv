@@ -1,0 +1,11 @@
+coin,score,news_sent,general_sent,focus_sent,flow_z,mentions_z,twitter_sent,confidence,evidence,mode
+ETH,0.1384,0.0,0.0,0.3548,0.0,0.6744907594765952,0.0,0.65,4,static-weights
+BTC,0.0979,0.0,0.0,0.23653333333333335,0.0,0.5058680696074465,0.0,0.65,4,static-weights
+XRP,0.0674,0.0,0.0,0.0,0.0,0.6744907594765952,0.0,0.45,3,static-weights
+SOL,0.0674,0.0,0.0,0.0,0.0,0.6744907594765952,0.0,0.45,3,static-weights
+ONDO,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.45,3,static-weights
+CRO,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.45,3,static-weights
+BNB,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.45,3,static-weights
+ADA,-0.1012,0.0,0.0,0.0,0.0,-1.011736139214893,0.0,0.45,3,static-weights
+LTC,-0.7757,0.0,0.0,0.0,0.0,-7.7566437339808445,0.0,0.45,3,static-weights
+XVG,-0.8094,0.0,0.0,0.0,0.0,-8.093889113719143,0.0,0.45,3,static-weights

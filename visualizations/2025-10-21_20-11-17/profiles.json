@@ -1,0 +1,30 @@
+{
+  "BTC": {
+    "news_sent": null,
+    "general_sent": null,
+    "focus_sent": null,
+    "flow": 0.0,
+    "mentions": 0.0,
+    "twitter_pos": 27,
+    "twitter_neg": 6,
+    "twitter_total": 33,
+    "twitter_pos_pct": 81.82,
+    "twitter_neg_pct": 18.18,
+    "twitter_sent": 0.5675675675675675,
+    "sources": [
+      "twitter_sentiment"
+    ],
+    "score": 0.0284,
+    "evidence": 3,
+    "confidence": 0.5,
+    "score_breakdown": {
+      "news_sent": 0.0,
+      "general_sent": 0.0,
+      "focus_sent": 0.0,
+      "flow_z": 0.0,
+      "mentions_z": 0.0,
+      "twitter_sent": 0.5675675675675675,
+      "_mode": "static-weights"
+    }
+  }
+}

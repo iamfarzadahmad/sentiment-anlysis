@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+nltk
+matplotlib
+twikit
+requests
+pandas
+numpy
+# If you actually need headless browser in Python:
+pyppeteer

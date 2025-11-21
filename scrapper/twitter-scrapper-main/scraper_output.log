@@ -1,0 +1,36 @@
+🔍 Searching Twitter for: "Bitcoin"
+📊 Target: 20 tweets
+
+📱 Opening: https://twitter.com/search?q=Bitcoin&f=live
+⏳ Waiting for page to load...
+🔍 Looking for tweets...
+
+⚠️  No articles found - saving page screenshot for debugging...
+   Screenshot saved as twitter_debug.png
+
+📄 Page content preview:
+Something went wrong. Try reloading.
+Retry...
+
+📜 Scrolling... (1/5)
+   Found 0 unique tweets so far...
+📜 Scrolling... (2/5)
+   Found 0 unique tweets so far...
+📜 Scrolling... (3/5)
+   Found 0 unique tweets so far...
+📜 Scrolling... (4/5)
+   Found 0 unique tweets so far...
+📜 Scrolling... (5/5)
+   Found 0 unique tweets so far...
+
+✨ Collected 0 tweets!
+💾 Saved to: twitter_data/twitter_Bitcoin_2025-10-17T03-36-09.json
+
+📊 Summary:
+   Total tweets: 0
+   Total likes: 0
+   Total retweets: 0
+   With images: 0
+   Verified users: 0
+
+✅ Done!

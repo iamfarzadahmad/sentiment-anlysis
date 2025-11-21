@@ -1,0 +1,36 @@
+{
+  "manifest_version": 2,
+  "name": "SomethingAwful Thread Scraper",
+  "version": "0.1",
+  "description": "One-click archival tool for Something Awful threads.",
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "downloads",
+    "storage",
+    "webNavigation",
+    "webRequest",
+    "webRequestBlocking",
+    "<all_urls>"
+  ],
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_title": "SA Thread Archiver"
+  },
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://forums.somethingawful.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "web_accessible_resources": ["scraper.js", "tweet-scraper.js", "twitter-search-scraper.js"],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
+

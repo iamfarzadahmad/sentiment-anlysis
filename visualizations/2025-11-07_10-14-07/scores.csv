@@ -1,0 +1,4 @@
+coin,score,news_sent,general_sent,focus_sent,flow_z,mentions_z,twitter_sent,confidence,evidence,mode
+6BFPDDF7VDKFDZEPJWZVENZGIGZS1DJMZJHKTJITPUMP,0.0364,0.0,0.0,0.0,0.0,0.0,0.7272727272727273,0.5,3,static-weights
+BTC,0.0107,0.0,0.0,0.0,0.0,0.0,0.2142857142857142,0.5,3,static-weights
+6N3VFO3KE4XUMEKJOCCVUWFAVMV5GMDCMYZ1NES48R13,-0.0071,0.0,0.0,0.0,0.0,0.0,-0.1428571428571429,0.5,3,static-weights

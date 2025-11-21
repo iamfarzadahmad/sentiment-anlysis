@@ -1,0 +1,32 @@
+[
+  {
+    "query": "btc",
+    "positive": 0,
+    "negative": 1,
+    "total_mentions": 1
+  },
+  {
+    "query": "Bitcoin",
+    "positive": 15,
+    "negative": 4,
+    "total_mentions": 19
+  },
+  {
+    "query": "6n3vfo3ke4xumekjoccvuwfavmv5gmdcmyz1nes48r13",
+    "positive": 1,
+    "negative": 2,
+    "total_mentions": 3
+  },
+  {
+    "query": "6BFPDdf7VdkFdzePjWzVENzgigzs1DJmZJhKtjiTpump",
+    "positive": 17,
+    "negative": 1,
+    "total_mentions": 18
+  },
+  {
+    "query": "7ywtzfjqakfrquwa57qwt5qcs3nkmmmxwxw95kcsgp8d",
+    "positive": 0,
+    "negative": 1,
+    "total_mentions": 1
+  }
+]

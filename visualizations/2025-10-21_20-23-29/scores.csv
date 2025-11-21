@@ -1,0 +1,2 @@
+coin,score,news_sent,general_sent,focus_sent,flow_z,mentions_z,twitter_sent,confidence,evidence,mode
+BTC,0.0284,0.0,0.0,0.0,0.0,0.0,0.5675675675675675,0.5,3,static-weights

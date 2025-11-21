@@ -1,0 +1,28 @@
+{
+  "name": "sentimnet_analysis",
+  "version": "1.0.0",
+  "description": "> A simple Bi-LSTM + Attention model for binary and multi-class sentiment analysis, with example data loading and training scripts.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/visaladi/Sentimnet_analysis.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/visaladi/Sentimnet_analysis/issues"
+  },
+  "homepage": "https://github.com/visaladi/Sentimnet_analysis#readme",
+  "dependencies": {
+    "@book000/twitterts": "^0.83.32",
+    "puppeteer": "^24.25.0"
+  },
+  "type": "module",
+  "directories": {
+    "test": "test"
+  }
+}

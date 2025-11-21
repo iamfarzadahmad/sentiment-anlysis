@@ -1,0 +1,21 @@
+{
+  "name": "twitter-cli-scraper",
+  "version": "1.0.0",
+  "description": "CLI tool to scrape Twitter search results and save to JSON",
+  "main": "twitter-cli-scraper.js",
+  "scripts": {
+    "search": "node twitter-cli-scraper.js",
+    "test": "node twitter-cli-scraper.js Bitcoin 20"
+  },
+  "keywords": [
+    "twitter",
+    "scraper",
+    "cli",
+    "puppeteer"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^21.11.0"
+  }
+}

@@ -1,0 +1,264 @@
+{
+  "ETH": {
+    "news_sent": 0.0,
+    "general_sent": null,
+    "focus_sent": 0.3548,
+    "flow": 0.0,
+    "mentions": 112.0,
+    "twitter_pos": 0,
+    "twitter_neg": 0,
+    "twitter_sent": null,
+    "sources": [
+      "focus_sentiment",
+      "coin_finder",
+      "news_sentiment"
+    ],
+    "score": 0.1384,
+    "evidence": 4,
+    "confidence": 0.65,
+    "score_breakdown": {
+      "news_sent": 0.0,
+      "general_sent": 0.0,
+      "focus_sent": 0.3548,
+      "flow_z": 0.0,
+      "mentions_z": 0.6744907594765952,
+      "twitter_sent": 0.0,
+      "_mode": "static-weights"
+    }
+  },
+  "BTC": {
+    "news_sent": 0.0,
+    "general_sent": null,
+    "focus_sent": 0.23653333333333335,
+    "flow": 0.0,
+    "mentions": 110.0,
+    "twitter_pos": 0,
+    "twitter_neg": 0,
+    "twitter_sent": null,
+    "sources": [
+      "focus_sentiment",
+      "coin_finder",
+      "news_sentiment"
+    ],
+    "score": 0.0979,
+    "evidence": 4,
+    "confidence": 0.65,
+    "score_breakdown": {
+      "news_sent": 0.0,
+      "general_sent": 0.0,
+      "focus_sent": 0.23653333333333335,
+      "flow_z": 0.0,
+      "mentions_z": 0.5058680696074465,
+      "twitter_sent": 0.0,
+      "_mode": "static-weights"
+    }
+  },
+  "XRP": {
+    "news_sent": 0.0,
+    "general_sent": null,
+    "focus_sent": null,
+    "flow": 0.0,
+    "mentions": 116.0,
+    "twitter_pos": 0,
+    "twitter_neg": 0,
+    "twitter_sent": null,
+    "sources": [
+      "coin_finder",
+      "news_sentiment"
+    ],
+    "score": 0.0674,
+    "evidence": 3,
+    "confidence": 0.45,
+    "score_breakdown": {
+      "news_sent": 0.0,
+      "general_sent": 0.0,
+      "focus_sent": 0.0,
+      "flow_z": 0.0,
+      "mentions_z": 0.6744907594765952,
+      "twitter_sent": 0.0,
+      "_mode": "static-weights"
+    }
+  },
+  "SOL": {
+    "news_sent": 0.0,
+    "general_sent": null,
+    "focus_sent": null,
+    "flow": 0.0,
+    "mentions": 112.0,
+    "twitter_pos": 0,
+    "twitter_neg": 0,
+    "twitter_sent": null,
+    "sources": [
+      "coin_finder",
+      "news_sentiment"
+    ],
+    "score": 0.0674,
+    "evidence": 3,
+    "confidence": 0.45,
+    "score_breakdown": {
+      "news_sent": 0.0,
+      "general_sent": 0.0,
+      "focus_sent": 0.0,
+      "flow_z": 0.0,
+      "mentions_z": 0.6744907594765952,
+      "twitter_sent": 0.0,
+      "_mode": "static-weights"
+    }
+  },
+  "ONDO": {
+    "news_sent": 0.0,
+    "general_sent": null,
+    "focus_sent": null,
+    "flow": 0.0,
+    "mentions": 104.0,
+    "twitter_pos": 0,
+    "twitter_neg": 0,
+    "twitter_sent": null,
+    "sources": [
+      "coin_finder",
+      "news_sentiment"
+    ],
+    "score": 0.0,
+    "evidence": 3,
+    "confidence": 0.45,
+    "score_breakdown": {
+      "news_sent": 0.0,
+      "general_sent": 0.0,
+      "focus_sent": 0.0,
+      "flow_z": 0.0,
+      "mentions_z": 0.0,
+      "twitter_sent": 0.0,
+      "_mode": "static-weights"
+    }
+  },
+  "CRO": {
+    "news_sent": 0.0,
+    "general_sent": null,
+    "focus_sent": null,
+    "flow": 0.0,
+    "mentions": 104.0,
+    "twitter_pos": 0,
+    "twitter_neg": 0,
+    "twitter_sent": null,
+    "sources": [
+      "coin_finder",
+      "news_sentiment"
+    ],
+    "score": 0.0,
+    "evidence": 3,
+    "confidence": 0.45,
+    "score_breakdown": {
+      "news_sent": 0.0,
+      "general_sent": 0.0,
+      "focus_sent": 0.0,
+      "flow_z": 0.0,
+      "mentions_z": 0.0,
+      "twitter_sent": 0.0,
+      "_mode": "static-weights"
+    }
+  },
+  "BNB": {
+    "news_sent": 0.0,
+    "general_sent": null,
+    "focus_sent": null,
+    "flow": 0.0,
+    "mentions": 104.0,
+    "twitter_pos": 0,
+    "twitter_neg": 0,
+    "twitter_sent": null,
+    "sources": [
+      "coin_finder",
+      "news_sentiment"
+    ],
+    "score": 0.0,
+    "evidence": 3,
+    "confidence": 0.45,
+    "score_breakdown": {
+      "news_sent": 0.0,
+      "general_sent": 0.0,
+      "focus_sent": 0.0,
+      "flow_z": 0.0,
+      "mentions_z": 0.0,
+      "twitter_sent": 0.0,
+      "_mode": "static-weights"
+    }
+  },
+  "ADA": {
+    "news_sent": 0.0,
+    "general_sent": null,
+    "focus_sent": null,
+    "flow": 0.0,
+    "mentions": 92.0,
+    "twitter_pos": 0,
+    "twitter_neg": 0,
+    "twitter_sent": null,
+    "sources": [
+      "coin_finder",
+      "news_sentiment"
+    ],
+    "score": -0.1012,
+    "evidence": 3,
+    "confidence": 0.45,
+    "score_breakdown": {
+      "news_sent": 0.0,
+      "general_sent": 0.0,
+      "focus_sent": 0.0,
+      "flow_z": 0.0,
+      "mentions_z": -1.011736139214893,
+      "twitter_sent": 0.0,
+      "_mode": "static-weights"
+    }
+  },
+  "LTC": {
+    "news_sent": 0.0,
+    "general_sent": null,
+    "focus_sent": null,
+    "flow": 0.0,
+    "mentions": 12.0,
+    "twitter_pos": 0,
+    "twitter_neg": 0,
+    "twitter_sent": null,
+    "sources": [
+      "coin_finder",
+      "news_sentiment"
+    ],
+    "score": -0.7757,
+    "evidence": 3,
+    "confidence": 0.45,
+    "score_breakdown": {
+      "news_sent": 0.0,
+      "general_sent": 0.0,
+      "focus_sent": 0.0,
+      "flow_z": 0.0,
+      "mentions_z": -7.7566437339808445,
+      "twitter_sent": 0.0,
+      "_mode": "static-weights"
+    }
+  },
+  "XVG": {
+    "news_sent": 0.0,
+    "general_sent": null,
+    "focus_sent": null,
+    "flow": 0.0,
+    "mentions": 8.0,
+    "twitter_pos": 0,
+    "twitter_neg": 0,
+    "twitter_sent": null,
+    "sources": [
+      "coin_finder",
+      "news_sentiment"
+    ],
+    "score": -0.8094,
+    "evidence": 3,
+    "confidence": 0.45,
+    "score_breakdown": {
+      "news_sent": 0.0,
+      "general_sent": 0.0,
+      "focus_sent": 0.0,
+      "flow_z": 0.0,
+      "mentions_z": -8.093889113719143,
+      "twitter_sent": 0.0,
+      "_mode": "static-weights"
+    }
+  }
+}
