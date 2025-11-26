@@ -2,9 +2,18 @@ fastapi
 uvicorn[standard]
 nltk
 matplotlib
-twikit
 requests
 pandas
 numpy
-# If you actually need headless browser in Python:
+aiohttp
+scikit-learn
+seaborn
+beautifulsoup4
+transformers
+torch
+optimum
+onnxruntime
+datasets
+pydantic
 pyppeteer
+peft
